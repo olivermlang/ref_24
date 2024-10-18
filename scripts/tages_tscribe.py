@@ -12,6 +12,7 @@ def process_audio(audio_file,json_basedir,channel_program_id):
         auto_decoding_config=cloud_speech.AutoDetectDecodingConfig(),
         language_codes=["de-DE","de-DE"],
         model="long",
+        sample_rate_hertz=48000,
         features=cloud_speech.RecognitionFeatures(
             enable_word_confidence=True,
             enable_word_time_offsets=True
@@ -36,7 +37,7 @@ def process_audio(audio_file,json_basedir,channel_program_id):
 
     # Save the JSON string to a file
     response_json = type(response).to_json(response)
-    with open(f'{json_basedir}/{os.path.basename(audio_file).replace(".wav", "")}.transcript.json', 'w', encoding='utf-8') as file:
+    with open(f'{json_basedir}/{os.path.basename(audio_file).replace(".flac", "")}.transcript.json', 'w', encoding='utf-8') as file:
         file.write(response_json)
 
 def main():
