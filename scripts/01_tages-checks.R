@@ -77,7 +77,7 @@ btages_remedial <- list.files("/Volumes/4tb_sam/tages_remedial/")%>% str_subset(
 
 for (i in seq_along(btages_remedial)){
   
-}
+} #manually download missing 30ish videos from Tagesschau website (tages_remedial directory)
 
 # broadcast_date <- meta_df$broadcast_date[!is.na(meta_df$broadcast_date)]
 # load in all vids not covered in original scrape
@@ -91,7 +91,7 @@ btages_remedial <- list.files("/Volumes/4tb_sam/tages_remedial/")%>% str_subset(
 # 
 # file.copy(paste0("/Volumes/4tb_sam/tages_remedial/",btages_remedial_totrans), here("data_large","clean_audiovisual",btages_remedial_trans))
 
-all_vids <- c(meta_df$broadcast_date_fmt,btages_remedial)
+all_vids <- c(meta_df$broadcast_date_fmt,btages_remedial) #combine our pulled data plus manually pulled data
 
 
 
@@ -106,7 +106,7 @@ all(sort(all_vids)==sort(date_seq))
 all_vids <- c(btages_remedial,broadcast_date_fmt)
 
 meta_df_totscribe <- meta_df
-
+#merging all the data into clean_audiovisual, name everything in same naming convention, put everything in same folder (all audio+video files regardless of source)
 dir.create(here("data_large","clean_audiovisual"))
 toscrapeflac <- c(as.Date(NA))
 toscrapemp4 <- c(as.Date(NA))
@@ -162,6 +162,10 @@ for (i in seq_along(btages_remedial)) {
 # 
 # walk(tag,browseURL)
 
+## Manual ##
+# Upload (manually) both remedial as well as YouTube scraped videos to Google cloud speech-to-text bucket (tages_remedial and tages)
+## ##
+
 ###
 # get cloud objects
 bucket <- gcs_get_global_bucket()
@@ -173,7 +177,7 @@ bucket_objs <- gcs_list_objects(bucket = bucket,
 tages_obj <- str_subset(bucket_objs$name,"tagesschau.*flac")
 tages_rem <- str_subset(bucket_objs$name,"tages_remedial.*flac")
 
-
+# to delete duplicates:
 # inmeta <- str_remove(tages_obj,'^tagesschau/')%in%paste0(meta_df_totscribe$fpath_rel,".flac")
 # walk(paste0('gs://tscribe_audio/',tages_obj[!inmeta]),gcs_delete_object)
 # 
@@ -181,10 +185,10 @@ tages_rem <- str_subset(bucket_objs$name,"tages_remedial.*flac")
 
 ############### Do transcribing ############### 
 
-# virtual env w/ python3.12 
+# virtual env w/ python3.12 : to-do place virtual environment on Github --- this is where we'd run the tages_tscribe_oldapi.py
 venv_path <- "~/Documents/censorship/tv/data/transcription/python_stuff/transcribe-vids/bin/activate"
 venv_activiation    <- paste0('source ',venv_path)
-# add arguments to script
+# add arguments to script: run below line in command line 
 python_tscribe_base <- 'python3 TSCRIBEPYPATH FULLPATH JSONBASEDIR CHANNELPROGRAMID'
 # broadcast_date_1 <- date_seq[i]
 
@@ -289,11 +293,11 @@ tscribe_tag <- function(broadcast_date_1){
         tscript_df$anyaudio<-1; tscript_df$sound<-1; tscript_df$input_file<-input_file; tscript_df$billed_duration<-billed_duration
       } else {
         tscript_df[1,] <- NA;tscript_df$sound<-NA; tscript_df$input_file <- input_file; tscript_df$billed_duration <- billed_duration
-        if (billed_duration=="30s") {
+        if (billed_duration=="30s") { #30 second default on if it's nothing and it tries
           tscript_df$anyaudio <- 0
         }
       }
-      billed_duration
+      billed_duration #hand-checked for oddities
       saveRDS(tscript_df, here("data_large","tscripts_clean",paste0(broadcast_date_1,".rds")))
     }
   }
@@ -368,7 +372,7 @@ array_dir <- here("data_large","frame_arrays")
 ocr_dir <- here("data_large","ocr_noblue")
 
 vid_dirs_rel <- list.files(here("data_large","frames"),full.names = FALSE) # relative paths to frames
-
+#denoising by finding blue banner with text -- then converting blue to black so contrast for OCR is best on titles
 remove_blue_pixels <- function(img, blue_threshold = 200) {
   blue_channel <- image_channel(img, "blue")  # Separate the blue channel
   # create a binary mask based on the blue threshold
