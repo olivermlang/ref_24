@@ -1,5 +1,8 @@
 pacman::p_load(data.table,lubridate,here,stringr,dplyr,readr,jsonlite,purrr,av,tesseract,
                googleCloudStorageR,magick,parallel,janitor)
+
+############### Clean metadata ############### 
+
 tages_vids <- list.files("/Volumes/4tb_sam/tages/",full.names = T)
 # load in all vid and json input
 vidoutput <- tages_vids |> 
@@ -61,6 +64,7 @@ meta_df <- filter(meta_df,!is.na(broadcast_date_fmt)&broadcast_date_fmt%in%date_
 
 nrow(get_dupes(meta_df,broadcast_date_fmt))==0
 
+############### Merge and prep data for transcription ############### 
 
 # x <- c()
 # for (i in seq_along(meta_df$fpath)) {
@@ -175,7 +179,7 @@ tages_rem <- str_subset(bucket_objs$name,"tages_remedial.*flac")
 # 
 
 
-
+############### Do transcribing ############### 
 
 # virtual env w/ python3.12 
 venv_path <- "~/Documents/censorship/tv/data/transcription/python_stuff/transcribe-vids/bin/activate"
@@ -298,7 +302,7 @@ tscribe_tag <- function(broadcast_date_1){
 
 parallel::mclapply(date_seq,tscribe_tag,mc.cores=10)
 
-
+############### Get and clean transcripts ############### 
 tscripts <- map(list.files( here("data_large","tscripts_clean"),full.names = T),readRDS) 
 names(tscripts) <- list.files( here("data_large","tscripts_clean"),full.names = F)
 tscripts_df <- 
@@ -358,28 +362,19 @@ frame_sampler <- function(vid_name){
 
 parallel::mclapply(vids_to_sample, frame_sampler, mc.cores=5)
 
-
+############### Crop and ocr title frames ############### 
 frames_dir <- here("data_large","frames")
 array_dir <- here("data_large","frame_arrays")
 ocr_dir <- here("data_large","ocr_noblue")
 
 vid_dirs_rel <- list.files(here("data_large","frames"),full.names = FALSE) # relative paths to frames
 
-# Load the magick library
-library(magick)
-
-# Define the function
 remove_blue_pixels <- function(img, blue_threshold = 200) {
-  # Load the image
-  # Separate the blue channel
-  blue_channel <- image_channel(img, "blue")
-  
-  # Apply a custom expression to create a binary mask based on the blue threshold
+  blue_channel <- image_channel(img, "blue")  # Separate the blue channel
+  # create a binary mask based on the blue threshold
   blue_mask <- image_fx(blue_channel, expression = paste0("u < ", blue_threshold / 255, " ? 0 : 1"))
-  
   # Convert blue areas to black by multiplying the mask with the original image
   img_modified <- image_composite(image_background(blue_mask, "black"), img, operator = "multiply")
-  
   # Return the modified image
   return(img_modified)
 }
@@ -397,15 +392,17 @@ image_array_func <- function(vid_dir_rel, frames_dir) {
                      full.names = TRUE)
   image_array_list <- lapply(path,
                              magick::image_read)  # load as array
-  
+  # get video format
   dims <- map(path,av::av_media_info) %>% map(pluck, "video") %>% map(.,~list("width"=.x$width,"height"=.x$height)) %>% unique() %>% unlist()
-  if (length(dims)!=2) {
+  
+  if (length(dims)!=2) { # break if format not valid
     print("error")
     break
   }
   prop_width <- dims["width"] / 1280
   prop_height <- dims["height"] / 720
   
+  # adjust dims for different formats of video in the sample
   top_crop_dims <- paste(paste(700*prop_width,40*prop_width,sep="x"),
                          70*prop_height,
                          415*prop_height,
@@ -427,16 +424,16 @@ image_array_func <- function(vid_dir_rel, frames_dir) {
                          sep="+")
   
   
-  # 
+  # old pre-processing
   # out_top <-map(image_array_list, image_crop,top_crop_dims)  %>% purrr::map(magick::image_convert,type = 'Grayscale') %>% purrr::map(tesseract::ocr_data,engine=engine)
   # out_line1 <-map(image_array_list, image_crop,line1_crop_dims) %>% purrr::map(magick::image_convert,type = 'Grayscale') %>% purrr::map(tesseract::ocr_data,engine=engine)
   # out_line2 <- map(image_array_list, image_crop,line2_crop_dims) %>% purrr::map(magick::image_convert,type = 'Grayscale') %>% purrr::map(tesseract::ocr_data,engine=engine)
   # out_all <-map(image_array_list, image_crop,all_crop_dims)  %>% purrr::map(magick::image_convert,type = 'Grayscale') %>% purrr::map(tesseract::ocr_data,engine=engine)
-  # 
-  out_top <-map(image_array_list, image_crop,top_crop_dims) %>% map(remove_blue_pixels)  %>% purrr::map(magick::image_convert,type = 'Grayscale') %>% purrr::map(tesseract::ocr_data,engine=engine)
-  out_line1 <-map(image_array_list, image_crop,line1_crop_dims)  %>% map(remove_blue_pixels)%>% purrr::map(magick::image_convert,type = 'Grayscale') %>% purrr::map(tesseract::ocr_data,engine=engine)
-  out_line2 <- map(image_array_list, image_crop,line2_crop_dims)  %>% map(remove_blue_pixels)%>% purrr::map(magick::image_convert,type = 'Grayscale') %>% purrr::map(tesseract::ocr_data,engine=engine)
-  out_all <-map(image_array_list, image_crop,all_crop_dims)   %>% map(remove_blue_pixels)%>% purrr::map(magick::image_convert,type = 'Grayscale') %>% purrr::map(tesseract::ocr_data,engine=engine)
+  # new pre-processing
+  out_top   <-map(image_array_list, image_crop,top_crop_dims)     %>% map(remove_blue_pixels)  %>% purrr::map(magick::image_convert,type = 'Grayscale') %>% purrr::map(tesseract::ocr_data,engine=engine)
+  out_line1 <-map(image_array_list, image_crop,line1_crop_dims)   %>% map(remove_blue_pixels)  %>% purrr::map(magick::image_convert,type = 'Grayscale') %>% purrr::map(tesseract::ocr_data,engine=engine)
+  out_line2 <-map(image_array_list, image_crop,line2_crop_dims)   %>% map(remove_blue_pixels)  %>% purrr::map(magick::image_convert,type = 'Grayscale') %>% purrr::map(tesseract::ocr_data,engine=engine)
+  out_all   <-map(image_array_list, image_crop,all_crop_dims)     %>% map(remove_blue_pixels)  %>% purrr::map(magick::image_convert,type = 'Grayscale') %>% purrr::map(tesseract::ocr_data,engine=engine)
   
   
   print(pryr::mem_used()) # check size
@@ -464,7 +461,7 @@ toc()
 beepr::beep()
 
 
-
+############### Process OCR and clip ############### 
 raw_ocr_output_list <- map(list.files(here("data_large","ocr_noblue"),full.names = T),
                            readRDS)
 
@@ -563,9 +560,9 @@ conf_threshold_windows <- function(ocr_conf_df, # input df of frames info
 
 conf_thresh_90_list <- map(ocr_conf_dfs_list, # find thresholds for all videos
                            conf_threshold_windows,
-                           window_lng=4,
+                           window_lng=5,
                            thresh=75,
-                           num_greater=3)
+                           num_greater=2)
 
 # take data frames of ocr output and the cuts based on thresholds from prev. func
 # prev. func found window in which cut frames prob is
@@ -618,6 +615,8 @@ definite_cuts <- map2(conf_thresh_90_list,
                       avg_or_max="avg")
 
 
+############### Tesst accuracy of clipping ############### 
+
 # link cutopints w/ dates (metadata broadcast_date_fmt)
 definite_cuts_cutpointpairs <- map(definite_cuts, ~.x[c("cut_seg_start","cut_seg_end")]) %>% 
   rbindlist(use.names=T,idcol="broadcast_date_fmt") %>% 
@@ -630,6 +629,7 @@ tscript_nest_cut <- inner_join(tscript_nest, definite_cuts_cutpointpairs,
                                by = "broadcast_date_fmt")
 tscript_nest_cut <- tscript_nest_cut[map_dbl(tscript_nest_cut$description_timestamp_sec, length)>2,]
   
+
 # initialize test vectors
 mean_starts_est_error <- c()
 prop_win_5_est <- c()
@@ -649,7 +649,7 @@ for (i in 1:nrow(tscript_nest_cut)){
   mean_starts_est_error[i] <- mean(starts_est_error)
   prop_win_5_est[i] <- sum(starts_est_error <= 15) / length(starts_est_error)
   
-  # for each actual cutopint, take squared diff between actual and nearest estimated
+  # for each actual cutopint, take diff between actual and nearest estimated
   starts_act_error <- c()
   for (j in seq_along(starts_act)) {
     starts_act_error[j] <- min(abs(starts_act[j]-starts_est))
@@ -659,11 +659,12 @@ for (i in 1:nrow(tscript_nest_cut)){
 }
 
 par(mfrow=c(2,2))
-hist(mean_starts_est_error,breaks=20, xlim=c(0,20))
-hist(prop_win_5_est, breaks=20, xlim=c(0,1))
-hist(mean_starts_act_error, breaks=20, xlim=c(0,100))
-hist(prop_win_5_act, breaks=20, xlim=c(0,1))
-
+hist(mean_starts_est_error,breaks=20, xlim=c(0,50))
+hist(prop_win_5_est, breaks=20, xlim=c(0,1), main = "Precision")
+abline(v=mean(prop_win_5_est),col="red")
+hist(mean_starts_act_error, breaks=20, xlim=c(0,50))
+hist(prop_win_5_act, breaks=20, xlim=c(0,1), main = "Recall")
+abline(v=mean(prop_win_5_act),col="red")
 
 # re-run above to optimize
 
