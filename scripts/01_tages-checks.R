@@ -383,7 +383,7 @@ remove_blue_pixels <- function(img, blue_threshold = 200) {
   return(img_modified)
 }
 
-
+#crop + OCR the image array
 image_array_func <- function(vid_dir_rel, frames_dir) { 
   
   engine_ger <- tesseract("deu", # language option for engine
@@ -433,7 +433,7 @@ image_array_func <- function(vid_dir_rel, frames_dir) {
   # out_line1 <-map(image_array_list, image_crop,line1_crop_dims) %>% purrr::map(magick::image_convert,type = 'Grayscale') %>% purrr::map(tesseract::ocr_data,engine=engine)
   # out_line2 <- map(image_array_list, image_crop,line2_crop_dims) %>% purrr::map(magick::image_convert,type = 'Grayscale') %>% purrr::map(tesseract::ocr_data,engine=engine)
   # out_all <-map(image_array_list, image_crop,all_crop_dims)  %>% purrr::map(magick::image_convert,type = 'Grayscale') %>% purrr::map(tesseract::ocr_data,engine=engine)
-  # new pre-processing
+  # new pre-processing: smaller top title, firstline of large title, second line of large title, all together
   out_top   <-map(image_array_list, image_crop,top_crop_dims)     %>% map(remove_blue_pixels)  %>% purrr::map(magick::image_convert,type = 'Grayscale') %>% purrr::map(tesseract::ocr_data,engine=engine)
   out_line1 <-map(image_array_list, image_crop,line1_crop_dims)   %>% map(remove_blue_pixels)  %>% purrr::map(magick::image_convert,type = 'Grayscale') %>% purrr::map(tesseract::ocr_data,engine=engine)
   out_line2 <-map(image_array_list, image_crop,line2_crop_dims)   %>% map(remove_blue_pixels)  %>% purrr::map(magick::image_convert,type = 'Grayscale') %>% purrr::map(tesseract::ocr_data,engine=engine)
